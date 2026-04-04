@@ -1,6 +1,9 @@
 # 16S Amplicon Species Abundance Heatmap Matrix Generation Tool - User Manual
 
 ***
+## 0. How to use the tool
+
+Just copy the code from generate_heatmap_matrix.py to your own file
 
 ## 1. Environment Configuration
 
