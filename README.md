@@ -3,7 +3,7 @@
 ***
 ## 0. How to use the tool
 
-Just copy the code from generate_heatmap_matrix.py to your own file or down generate_heatmap_matrix.py
+Just copy the code from generate_heatmap_matrix.py to your own file or downlode generate_heatmap_matrix.py
 
 ## 1. Environment Configuration
 
