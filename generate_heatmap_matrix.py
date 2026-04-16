@@ -4,8 +4,8 @@
 16S扩增子分析 - 物种丰度热图矩阵生成工具
 ===========================================
 功能：读取OTU丰度表、物种注释表和元数据，生成适用于各种热图绘制工具的CSV矩阵文件
-作者：xuxinxi14
-版本：1.0.0
+作者：徐新玺
+版本：1.1.0
 日期：2026-04-04
 
 符合QIIME2/USEARCH行业标准，适用于TBtools、R pheatmap、GraphPad Prism、Origin等工具
@@ -33,7 +33,7 @@ CONFIG = {
 
     # ---- 输出文件路径配置 ----
     # 输出CSV文件路径（含文件名）
-    "output_path": "heatmap_matrix.csv",
+    "output_path": "heatmap_matrix_new.csv",
 
     # ---- 分类水平配置 ----
     # 可选值："phylum"(门) | "class"(纲) | "order"(目) | "family"(科) | "genus"(属)
@@ -41,7 +41,7 @@ CONFIG = {
     "tax_level": "genus",
 
     # ---- 聚合维度配置 ----
-    # 可选值："sample"(按样本) | "group"(按分组，计算组内平均相对丰度)
+    # 可选值："sample"(按样本) | "group"(按分组，计算组内相对丰度总和)
     # 默认：按样本（sample）
     "aggregate_by": "group",
 
@@ -435,27 +435,27 @@ def to_relative_abundance(abundance_matrix: pd.DataFrame) -> pd.DataFrame:
 # ============================================================
 def aggregate_by_group(rel_abundance: pd.DataFrame, metadata: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     """
-    若 aggregate_by="group"，则按分组计算组内平均相对丰度
+    若 aggregate_by="group"，则按分组计算组内相对丰度总和
     """
     if cfg["aggregate_by"] == "sample":
         log_separator("步骤5：聚合维度 = 按样本，跳过分组聚合")
         return rel_abundance
 
-    log_separator("步骤5：按分组计算平均相对丰度")
+    log_separator("步骤5：按分组计算相对丰度总和")
     # 转置：行=样本，列=物种
     rel_t = rel_abundance.T
     rel_t.index.name = "sampleID"
     rel_t = rel_t.join(metadata[["group"]], how="left")
 
-    # 按group分组求均值
-    group_mean = rel_t.groupby("group").mean()
+    # 按group分组求总和
+    group_sum = rel_t.groupby("group").sum()
 
-    log(f"按分组聚合完成：{len(group_mean)} 个分组")
+    log(f"按分组聚合完成：{len(group_sum)} 个分组")
     for grp, cnt in metadata["group"].value_counts().items():
         log(f"  分组 '{grp}'：{cnt} 个样本")
 
     # 转回：行=物种，列=分组
-    return group_mean.T
+    return group_sum.T
 
 
 # ============================================================
@@ -676,3 +676,109 @@ def main():
 # ============================================================
 if __name__ == "__main__":
     main()
+
+
+# ============================================================
+# 使用说明（Usage Documentation）
+# ============================================================
+"""
+==============================================================
+    16S扩增子 物种丰度热图矩阵生成工具 - 使用说明
+==============================================================
+
+【一、环境配置】
+    需要Python 3.8+，安装以下依赖包：
+        pip install pandas numpy scipy
+
+    或使用conda：
+        conda install pandas numpy scipy
+
+【二、参数修改方法】
+    所有配置项均在代码顶部的 CONFIG 字典中修改，常用修改示例：
+
+    1. 切换分类水平（如改为门水平）：
+       "tax_level": "phylum"
+       可选：phylum | class | order | family | genus
+
+    2. 按分组输出（计算组内相对丰度总和）：
+       "aggregate_by": "group"
+       可选：sample | group
+
+    3. 关闭标准化（输出原始相对丰度）：
+       "normalization": "none"
+       可选：none | zscore | minmax
+
+    4. 关闭低丰度过滤：
+       "abundance_threshold": 0
+
+    5. 更改输入文件路径：
+       "metadata_path": "path/to/your/metadata.txt"
+
+    6. 关闭上级分类注释：
+       "add_higher_taxonomy": False
+
+【三、输入文件格式要求】
+
+    1. metadata.txt（制表符分隔）
+       必须包含 sampleID 列和 group 列，其余列可自由扩展：
+       sampleID    group    age    sex
+       Sample1     Control  25     M
+       Sample2     Control  30     F
+       Sample3     Treatment 28    M
+
+    2. otutab.txt（制表符分隔）
+       第一列为OTU ID（无列名或列名为#OTU ID均可），其余列为样本名：
+       #OTU ID    Sample1    Sample2    Sample3
+       OTU001     100        200        50
+       OTU002     0          300        120
+
+    3. taxonomy.txt（制表符分隔）
+       第一列为OTU ID，列名为7个分类水平（kingdom/phylum/class/order/family/genus/species）：
+       #OTU ID    kingdom      phylum          class           ...
+       OTU001     k__Bacteria  p__Firmicutes   c__Bacilli      ...
+       注意：列名大小写不敏感，程序会自动识别
+
+【四、输出文件说明】
+    输出为UTF-8编码的CSV文件，第一列为物种/样本名，其余列为样本/分组名。
+    - 标准化方法为none时：值为相对丰度（0~1之间的小数）
+    - 标准化方法为zscore时：值为Z-score（可为负数，适合热图配色）
+    - 标准化方法为minmax时：值在0~1之间（另一种标准化方式）
+
+    兼容以下热图绘制工具：
+    ✓ TBtools（直接导入CSV绘制热图）
+    ✓ R pheatmap（read.csv() 直接读取，转为矩阵后绘图）
+    ✓ GraphPad Prism（导入CSV后选择热图）
+    ✓ Origin（导入CSV，插入热图）
+    ✓ Python seaborn/matplotlib（pd.read_csv() 直接读取）
+
+【五、常见问题排查】
+
+    Q1：报错 "文件不存在"
+    A：检查文件路径是否正确，可使用绝对路径，注意Windows路径反斜杠需写为
+       双反斜杠（\\）或改用正斜杠（/）
+
+    Q2：报错 "metadata 与 otutab 无任何共有样本"
+    A：检查otutab的列名和metadata的sampleID是否完全一致（区分大小写和空格）
+
+    Q3：报错 "过滤后无任何物种保留"
+    A：降低 abundance_threshold 阈值，如改为0.0001（0.01%），或设为0关闭过滤
+
+    Q4：导入Excel后中文乱码
+    A：输出文件使用utf-8-sig编码，Excel可正常识别；若仍乱码请用Excel"数据→
+       导入文本"功能，选择UTF-8编码
+
+    Q5：taxonomy列名不标准（如Phylum而非phylum）
+    A：程序会自动识别大小写，但如果列名完全不同（如使用中文）则需手动统一
+
+    Q6：热图中出现大量NaN
+    A：通常因Z-score标准化时某物种在所有样本中丰度相同（方差为0），程序已自动
+       将这些行置0，不影响绘图
+
+【六、引用与合规】
+    本工具计算逻辑符合QIIME2和USEARCH的行业标准：
+    - 相对丰度：按样本归一化，与QIIME2 feature-table relative-frequency一致
+    - Z-score：按物种（行）维度计算，使用样本标准差（ddof=1）
+    - 低丰度过滤：基于各样本平均相对丰度，与QIIME2 filter-features一致
+
+==============================================================
+"""
