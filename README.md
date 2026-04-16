@@ -1,142 +1,281 @@
-# 16S Amplicon Species Abundance Heatmap Matrix Generation Tool - User Manual
+# 16S Amplicon Taxa Abundance Heatmap Matrix Generation Tool
 
-***
-## 0. How to use the tool
+[English](README.md) | [中文](README.zh-CN.md)
 
-Just copy the code from generate_heatmap_matrix.py to your own file or downlode generate_heatmap_matrix.py
+A lightweight Python script that converts 16S amplicon OTU/ASV tables + taxonomy annotation + sample metadata into a **heatmap-ready abundance matrix (CSV)**.
 
-## 1. Environment Configuration
+It supports:
 
-Python 3.8+ is required. Install the following dependency packages:
+- Aggregation to a chosen taxonomic level (**phylum/class/order/family/genus**)
+- Optional aggregation by group (mean relative abundance within groups)
+- Low-abundance filtering based on **mean relative abundance**
+- Normalization for heatmap visualization (**none / zscore / minmax**)
+- Two output orientations (taxa × samples/groups, or samples/groups × taxa)
+- Taxonomy annotation chains (prepend higher taxonomy levels)
+- `taxonomy.txt` in either **7-column format** or **single-column semicolon-separated lineage** format
+
+---
+
+## Quick Start
+
+1. Put these files in the same directory as `generate_heatmap_matrix.py` (or set their paths in `CONFIG`):
+
+- `metadata.txt`
+- `otutab.txt`
+- `taxonomy.txt`
+
+2. Install dependencies:
 
 ```bash
 pip install pandas numpy scipy
 ```
 
-Or use conda:
+3. Run:
+
+```bash
+python generate_heatmap_matrix.py
+```
+
+4. Result:
+
+- Output file defaults to `heatmap_matrix.csv` (configurable via `CONFIG["output_path"]`).
+
+---
+
+## Environment
+
+- Python **3.8+**
+- Dependencies: `pandas`, `numpy`, `scipy`
+
+Conda alternative:
 
 ```bash
 conda install pandas numpy scipy
 ```
 
-***
+---
 
-## 2. Parameter Configuration Guide
+## Configuration (CONFIG)
 
-All configuration items can be modified in the `CONFIG` dictionary at the top of the code. Common modification examples are as follows:
+All parameters are in the `CONFIG` dictionary at the top of `generate_heatmap_matrix.py`.
 
-1.  **Switch taxonomic level (e.g. change to phylum level)**
-    ```python
-    "tax_level": "phylum"
-    ```
-    Available options: `phylum` | `class` | `order` | `family` | `genus`
+### Common options
 
-2.  **Output by group (calculate mean relative abundance within groups)**
-    ```python
-    "aggregate_by": "group"
-    ```
-    Available options: `sample` | `group`
+1) **Switch taxonomic level**
 
-3.  **Turn off normalization (output raw relative abundance)**
-    ```python
-    "normalization": "none"
-    ```
-    Available options: `none` | `zscore` | `minmax`
+```python
+"tax_level": "phylum"
+```
 
-4.  **Turn off low-abundance filtering**
-    ```python
-    "abundance_threshold": 0
-    ```
+Available: `phylum` | `class` | `order` | `family` | `genus`
 
-5.  **Change input file path**
-    ```python
-    "metadata_path": "path/to/your/metadata.txt"
-    ```
+2) **Aggregate by sample or group**
 
-6.  **Disable higher taxonomy annotation**
-    ```python
-    "add_higher_taxonomy": False
-    ```
+```python
+"aggregate_by": "group"
+```
 
-***
+Available: `sample` | `group`
 
-## 3. Input File Format Requirements
+3) **Set output orientation**
 
-### 3.1 metadata.txt (tab-delimited)
+```python
+"orientation": "vertical"
+```
 
-Must contain the `sampleID` column and `group` column. Additional columns can be added freely:
+Available:
 
-    sampleID    group       age     sex
-    Sample1     Control     25      M
-    Sample2     Control     30      F
-    Sample3     Treatment   28      M
+- `vertical`: rows are taxa; columns are taxonomy columns + samples/groups (default; recommended)
+- `horizontal`: rows are samples/groups; columns are taxa
 
-### 3.2 otutab.txt (tab-delimited)
+4) **Normalization**
 
-The first column is OTU ID (with no column name or column name `#OTU ID` are both acceptable), and the remaining columns are sample names:
+```python
+"normalization": "zscore"
+```
 
-    #OTU ID    Sample1    Sample2    Sample3
-    OTU001     100        200        50
-    OTU002     0          300        120
+Available: `none` | `zscore` | `minmax`
 
-### 3.3 taxonomy.txt (tab-delimited)
+5) **Low-abundance filtering**
 
-The first column is OTU ID, and the column names correspond to the 7 taxonomic levels (kingdom/phylum/class/order/family/genus/species):
+```python
+"abundance_threshold": 0.001
+```
 
-    #OTU ID    kingdom      phylum          class           ...
-    OTU001     k__Bacteria  p__Firmicutes   c__Bacilli      ...
+Rule: remove taxa whose **mean relative abundance across all columns** is below the threshold.
 
-Note: Column names are case-insensitive and will be automatically recognized by the program.
+- Set to `0` or `None` to disable.
 
-***
+6) **Higher taxonomy annotation chain**
 
-## 4. Output File Description
+```python
+"higher_taxonomy_levels": ["phylum", "class", "order", "family"]
+```
 
-The output is a UTF-8 encoded CSV file, with the first column being species/sample names, and the remaining columns being sample/group names.
+- Only levels higher than `tax_level` are kept; invalid or lower/equal levels are ignored.
+- Use `[]` to disable and output only the current level label.
 
-*   When normalization method is `none`: Values are relative abundance (decimal between 0 and 1)
-*   When normalization method is `zscore`: Values are Z-scores (can be negative, suitable for heatmap color mapping)
-*   When normalization method is `minmax`: Values are scaled between 0 and 1 (an alternative normalization method)
+7) **Input/output paths**
 
-Compatible with the following heatmap plotting tools:
+```python
+"metadata_path": "metadata.txt",
+"otutab_path": "otutab.txt",
+"taxonomy_path": "taxonomy.txt",
+"output_path": "heatmap_matrix.csv",
+```
 
-*   ✅ TBtools (directly import CSV for heatmap plotting)
-*   ✅ R pheatmap (directly read via `read.csv()`, convert to matrix for plotting)
-*   ✅ GraphPad Prism (select heatmap after importing CSV)
-*   ✅ Origin (import CSV and insert heatmap)
-*   ✅ Python seaborn/matplotlib (directly read via `pd.read_csv()`)
+---
 
-***
+## Input file formats
 
-## 5. Troubleshooting (FAQs)
+All inputs are **tab-delimited**.
 
-**Q1: Error "File does not exist"**
-A: Check if the file path is correct. Absolute paths are recommended. Note that backslashes in Windows paths need to be written as double backslashes (`\\`) or replaced with forward slashes (`/`).
+### 1) `metadata.txt`
 
-**Q2: Error "No shared samples between metadata and otutab"**
-A: Check if the column names of otutab and the sampleID in metadata are completely consistent (case and space sensitive).
+Must include columns:
 
-**Q3: Error "No taxa retained after filtering"**
-A: Lower the `abundance_threshold` value, e.g. change to 0.0001 (0.01%), or set to 0 to turn off filtering.
+- `sampleID`
+- `group`
 
-**Q4: Chinese garbled characters after importing into Excel**
-A: The output file uses utf-8-sig encoding, which can be normally recognized by Excel. If garbled characters still occur, please use Excel's "Data → Import Text" function and select UTF-8 encoding.
+Column names are matched case-insensitively. Extra columns are allowed.
 
-**Q5: Non-standard taxonomy column names (e.g. Phylum instead of phylum)**
-A: The program automatically recognizes case, but if the column names are completely different (e.g. using Chinese), you need to manually unify them.
+Example:
 
-**Q6: A large number of NaN values appear in the heatmap**
-A: Usually caused by the same abundance of a taxon in all samples (variance = 0) during Z-score normalization. The program has automatically set these rows to 0, which does not affect plotting.
+```
+sampleID	group	age	sex
+Sample1	Control	25	M
+Sample2	Control	30	F
+Sample3	Treatment	28	M
+```
 
-***
+### 2) `otutab.txt`
 
-## 6. Citation & Compliance
+- First column: OTU/ASV ID (header can be empty or `#OTU ID`)
+- Remaining columns: sample names
 
-The calculation logic of this tool complies with the industry standards of QIIME2 and USEARCH:
+Example:
 
-*   **Relative abundance**: Normalized by sample, consistent with QIIME2 `feature-table relative-frequency`
-*   **Z-score**: Calculated by taxon (row) dimension, using sample standard deviation (ddof=1)
-*   **Low-abundance filtering**: Based on the mean relative abundance of each sample, consistent with QIIME2 `filter-features`
+```
+#OTU ID	Sample1	Sample2	Sample3
+OTU001	100	200	50
+OTU002	0	300	120
+```
 
-***
+### 3) `taxonomy.txt`
 
+Supported formats:
+
+**Format A (recommended): 7 columns**
+
+- First column: OTU/ASV ID
+- Columns: `kingdom`, `phylum`, `class`, `order`, `family`, `genus`, `species`
+
+Example:
+
+```
+#OTU ID	kingdom	phylum	class	order	family	genus	species
+OTU001	k__Bacteria	p__Firmicutes	c__Bacilli	o__...	f__...	g__...	s__...
+```
+
+**Format B: single-column lineage string**
+
+If `taxonomy.txt` has only one taxonomy column, the script will parse strings like:
+
+```
+k__Bacteria;p__Firmicutes;c__Bacilli;o__...;f__...;g__...;s__...
+```
+
+into the standard 7 columns automatically.
+
+---
+
+## Matching rules (important)
+
+The script will keep the intersection of identifiers and drop unmatched entries with warnings:
+
+- `metadata.sampleID` ∩ `otutab` sample columns must have overlap; otherwise it exits.
+- `otutab` OTU/ASV IDs ∩ `taxonomy` OTU/ASV IDs must have overlap; otherwise it exits.
+
+This means:
+
+- Samples present in only one file are removed.
+- OTUs/ASVs without taxonomy annotation are removed.
+
+---
+
+## Output
+
+The output is a **UTF-8 with BOM** CSV (`utf-8-sig`) for better Excel compatibility.
+
+- Default path: `heatmap_matrix.csv`
+- Values depend on normalization:
+  - `none`: relative abundance in [0, 1]
+  - `zscore`: Z-scores (per-taxon row-wise; can be negative)
+  - `minmax`: scaled to [0, 1] (per-taxon row-wise)
+
+### Orientation = `vertical` (default)
+
+- Rows: taxa
+- Columns:
+  - taxonomy columns (split from the concatenated label, prefixes removed)
+  - then sample/group columns
+
+### Orientation = `horizontal`
+
+- Rows: samples/groups
+- Columns: taxa
+
+### Output example (vertical)
+
+A simplified example (your taxonomy columns depend on `higher_taxonomy_levels` and `tax_level`):
+
+```
+phylum,family,genus,Control,Treatment
+Firmicutes,Lachnospiraceae,Blautia,0.12,0.34
+Bacteroidota,Bacteroidaceae,Bacteroides,0.08,0.02
+```
+
+---
+
+## Compatible heatmap tools
+
+- TBtools
+- R `pheatmap`
+- GraphPad Prism
+- Origin
+- Python `seaborn` / `matplotlib`
+
+---
+
+## Troubleshooting (FAQ)
+
+**Q1: "File does not exist"**
+
+- Check paths in `CONFIG`. Absolute paths are recommended.
+- On Windows, use `\` or `/` instead of `\`.
+
+**Q2: "No shared samples between metadata and otutab"**
+
+- Ensure `metadata.sampleID` exactly matches `otutab` column names (case/whitespace sensitive).
+
+**Q3: "No taxa retained after filtering"**
+
+- Lower `abundance_threshold` (e.g. `0.0001`) or set it to `0` to disable filtering.
+
+**Q4: Chinese garbled characters in Excel**
+
+- The output uses `utf-8-sig`. If Excel still garbles, import via Excel "Data → From Text/CSV" and select UTF-8.
+
+**Q5: Many NaN values in heatmap**
+
+- For Z-score normalization, taxa with zero variance are set to 0 automatically.
+
+---
+
+## Methods / Compliance notes
+
+The calculations follow common practices used in QIIME2 / USEARCH workflows:
+
+- Relative abundance: per-sample normalization, similar to QIIME2 `feature-table relative-frequency`
+- Z-score: computed per taxon (row-wise) using sample standard deviation (`ddof=1`)
+- Low-abundance filtering: based on mean relative abundance
